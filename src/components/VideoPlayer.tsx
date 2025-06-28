@@ -13,22 +13,35 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ videoUrl }) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
 
     const updateTime = () => setCurrentTime(video.currentTime);
-    const updateDuration = () => setDuration(video.duration);
+    const updateDuration = () => {
+      setDuration(video.duration);
+      setIsLoading(false);
+    };
+    const handleLoadStart = () => setIsLoading(true);
+    const handleCanPlay = () => setIsLoading(false);
 
     video.addEventListener('timeupdate', updateTime);
     video.addEventListener('loadedmetadata', updateDuration);
+    video.addEventListener('loadstart', handleLoadStart);
+    video.addEventListener('canplay', handleCanPlay);
+
+    // Force load the video
+    video.load();
 
     return () => {
       video.removeEventListener('timeupdate', updateTime);
       video.removeEventListener('loadedmetadata', updateDuration);
+      video.removeEventListener('loadstart', handleLoadStart);
+      video.removeEventListener('canplay', handleCanPlay);
     };
-  }, []);
+  }, [videoUrl]);
 
   const togglePlayPause = () => {
     const video = videoRef.current;
@@ -37,7 +50,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ videoUrl }) => {
     if (isPlaying) {
       video.pause();
     } else {
-      video.play();
+      video.play().catch(console.error);
     }
     setIsPlaying(!isPlaying);
   };
@@ -59,6 +72,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ videoUrl }) => {
   };
 
   const formatTime = (time: number) => {
+    if (!time || isNaN(time)) return '0:00';
     const minutes = Math.floor(time / 60);
     const seconds = Math.floor(time % 60);
     return `${minutes}:${seconds.toString().padStart(2, '0')}`;
@@ -67,12 +81,21 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ videoUrl }) => {
   return (
     <div className="space-y-4">
       <div className="relative bg-black rounded-lg overflow-hidden">
+        {isLoading && (
+          <div className="absolute inset-0 flex items-center justify-center bg-gray-900 text-white">
+            Loading video...
+          </div>
+        )}
         <video
           ref={videoRef}
           src={videoUrl}
           className="w-full h-auto max-h-96 object-contain"
           onPlay={() => setIsPlaying(true)}
           onPause={() => setIsPlaying(false)}
+          onError={(e) => {
+            console.error('Video error:', e);
+            setIsLoading(false);
+          }}
         />
       </div>
       
@@ -85,6 +108,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ videoUrl }) => {
             step={0.1}
             onValueChange={handleSeek}
             className="w-full"
+            disabled={!duration}
           />
         </div>
 
@@ -96,6 +120,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ videoUrl }) => {
               variant="outline"
               size="sm"
               className="flex items-center gap-1"
+              disabled={!duration}
             >
               {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
               {isPlaying ? 'Pause' : 'Play'}
@@ -105,6 +130,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ videoUrl }) => {
               variant="outline"
               size="sm"
               className="flex items-center gap-1"
+              disabled={!duration}
             >
               <RotateCcw className="h-4 w-4" />
               Restart
